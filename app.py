@@ -31,64 +31,24 @@ if 'token_count' not in st.session_state:
     st.session_state.token_count = 0
 if 'error_message' not in st.session_state:
     st.session_state.error_message = None
-if 'api_keys' not in st.session_state:
-    st.session_state.api_keys = {}
-if 'selected_key_name' not in st.session_state:
-    st.session_state.selected_key_name = "Custom"
 
 # Configure OpenAI API
 def configure_openai():
     # Try environment variable first
     api_key = os.getenv("OPENAI_API_KEY")
     
+    # Debug: Print the API key source
+    #st.write(f"API Key Source: Environment Variable (Value: {api_key})")
+    
     # If not in environment, try secrets
     if not api_key:
         try:
             api_key = st.secrets["openai_api_key"]
+            st.write(f"API Key Source: Streamlit Secrets (Value: {api_key})")
         except:
-            # Load saved API keys from session state
-            api_keys = st.session_state.api_keys
-            
-            # API key selection section
-            st.sidebar.subheader("API Key Configuration")
-            
-            # Add new API key option
-            new_key_name = st.sidebar.text_input("Add a new API key name:", key="new_key_name")
-            new_key_value = st.sidebar.text_input("Enter the API key value:", type="password", key="new_key_value")
-            
-            if st.sidebar.button("Save API Key"):
-                if new_key_name and new_key_value:
-                    api_keys[new_key_name] = new_key_value
-                    st.session_state.api_keys = api_keys
-                    st.session_state.selected_key_name = new_key_name
-                    st.sidebar.success(f"API key '{new_key_name}' saved successfully!")
-                else:
-                    st.sidebar.warning("Please enter both a name and value for the API key.")
-            
-            # Show divider
-            st.sidebar.divider()
-            
-            # Create a list of key options including saved keys and "Custom" option
-            key_options = list(api_keys.keys())
-            key_options.append("Custom")
-            
-            # API key selector
-            selected_key_name = st.sidebar.selectbox(
-                "Select an API key:",
-                options=key_options,
-                index=key_options.index(st.session_state.selected_key_name) if st.session_state.selected_key_name in key_options else len(key_options)-1
-            )
-            
-            # Update selected key in session state
-            st.session_state.selected_key_name = selected_key_name
-            
-            # If "Custom" is selected, show text input for custom key
-            if selected_key_name == "Custom":
-                api_key = st.sidebar.text_input("Enter your OpenAI API key:", type="password", key="custom_api_key")
-            else:
-                # Use the selected saved key
-                api_key = api_keys.get(selected_key_name, "")
-                st.sidebar.info(f"Using saved API key: '{selected_key_name}'")
+            # If not in secrets, get from user input
+            api_key = st.sidebar.text_input("Enter your OpenAI API key:", type="password")
+            st.write(f"API Key Source: User Input (Value: {api_key})")
     
     if api_key:
         openai.api_key = api_key
@@ -160,9 +120,14 @@ def chunk_text(text, filename, page_num, max_tokens=500, overlap=50):
     return chunks
 
 # Function to get embeddings with rate limit handling
+import logging
+
 def get_embeddings(text, retry_count=3):
     for attempt in range(retry_count):
         try:
+            # Debug: Print the API key being used
+            #st.write(f"Using API key: {openai.api_key}")
+            
             response = openai.Embedding.create(
                 input=text,
                 model="text-embedding-3-small"
@@ -346,42 +311,37 @@ def main():
         # OpenAI API configuration
         api_configured = configure_openai()
         
-        # Only show these options if API is configured
-        if api_configured:
-            st.divider()
-            
-            # Model selection
-            model = st.selectbox("Select OpenAI Model:", 
-                                ["gpt-4o-mini"], 
-                                index=0)
-            
-            # Chunk size configuration
-            chunk_size = st.slider("Chunk Size (words):", 
-                                  min_value=100, 
-                                  max_value=1000, 
-                                  value=500, 
-                                  step=50)
-            
-            # Number of results to return
-            top_k = st.slider("Number of document chunks to retrieve:", 
-                             min_value=1, 
-                             max_value=10, 
-                             value=3)
-            
-            # Display token usage if documents are processed
-            if st.session_state.token_count > 0:
-                st.info(f"Total tokens used for embeddings: {st.session_state.token_count}")
-            
-            # Clear data button
-            if st.button("Clear All Data"):
-                st.session_state.dataframe = None
-                st.session_state.documents_processed = False
-                st.session_state.uploaded_files = []
-                st.session_state.processing_complete = False
-                st.session_state.token_count = 0
-                st.session_state.error_message = None
-                # Don't clear API keys when resetting data
-                st.experimental_rerun()
+        # Model selection
+        model = st.selectbox("Select OpenAI Model:", 
+                            ["gpt-4o-mini"], 
+                            index=0)
+        
+        # Chunk size configuration
+        chunk_size = st.slider("Chunk Size (words):", 
+                              min_value=100, 
+                              max_value=1000, 
+                              value=500, 
+                              step=50)
+        
+        # Number of results to return
+        top_k = st.slider("Number of document chunks to retrieve:", 
+                         min_value=1, 
+                         max_value=10, 
+                         value=3)
+        
+        # Display token usage if documents are processed
+        if st.session_state.token_count > 0:
+            st.info(f"Total tokens used for embeddings: {st.session_state.token_count}")
+        
+        # Clear data button
+        if st.button("Clear All Data"):
+            st.session_state.dataframe = None
+            st.session_state.documents_processed = False
+            st.session_state.uploaded_files = []
+            st.session_state.processing_complete = False
+            st.session_state.token_count = 0
+            st.session_state.error_message = None
+            st.experimental_rerun()
     
     # Main content
     st.title("📚 PDF Knowledge Base RAG")

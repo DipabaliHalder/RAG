@@ -1,7 +1,7 @@
 streamlit
+openai
 pandas
 numpy
 scikit-learn
 tiktoken
 PyPDF2
-openai
